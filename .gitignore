@@ -3,8 +3,8 @@
 .env.*
 
 # ===== Data & RAG artifacts =====
-data_source/
-*.pdf
+# data_source/
+# *.pdf
 
 chroma/
 faiss_index/
