@@ -185,29 +185,20 @@ from langgraph.graph import END, StateGraph
 
 # 1. MÁY CHÉM VĂN PHONG (Giữ nguyên để dọn dẹp rác từ LLM nhỏ)
 def may_chem_van_phong(text: str) -> str:
-    # 1. Dọn dẹp thẻ HTML và ký tự đặc biệt của mô hình
     clean_text = text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
-    
-    # 2. XỬ LÝ LỖI HIỆN \n: Biến chuỗi "\\n" (2 ký tự) thành dấu xuống dòng thật (\n)
     clean_text = clean_text.replace('\\n', '\n')
-    
-    # 3. Xóa sạch mọi ký tự Tiếng Trung/Nhật/Hàn
     clean_text = re.sub(r'[\u4e00-\u9fff]+', '', clean_text).strip()
     
-    # 4. QUÉT SẠCH LANH CHANH (Kể cả khi web bị stream)
     pattern = r"^(Đúng rồi.*?|Bạn nói đúng.*?|Đúng vậy.*?|Chính xác.*?|Câu hỏi.*?|Dạ đúng.*?)(?:,|\.|!|\n|\s)+"
     while re.match(pattern, clean_text, re.IGNORECASE):
         clean_text = re.sub(pattern, "", clean_text, count=1, flags=re.IGNORECASE).strip()
     
-    # 5. Gọt nốt cái đuôi ngáo ngơ
     duoi_ngao_ngo = "không cần trả lời thêm bất kỳ thông tin nào khác"
     if duoi_ngao_ngo in clean_text.lower():
         clean_text = re.sub(r'(?i)[.,]?\s*' + duoi_ngao_ngo + r'.*$', '.', clean_text).strip()
 
-    # 6. DỌN DẸP XUỐNG DÒNG THỪA
     clean_text = re.sub(r'\n{3,}', '\n\n', clean_text).strip()
 
-    # 7. Viết hoa chữ cái đầu tiên
     if len(clean_text) > 0:
         clean_text = clean_text[0].upper() + clean_text[1:]
         
@@ -219,6 +210,7 @@ class GraphState(TypedDict):
     documents: List[any]
     generation: str
     fallback: bool
+    retry_count: int # Thêm biến đếm số lần cứu hộ
 
 
 # 3. CLASS HỆ THỐNG CRAG
@@ -237,97 +229,109 @@ class Offline_RAG:
             question = state["question"]
             print(f"\n[CRAG] 🔎 TRẠM 1: Tìm kiếm tài liệu cho câu hỏi: '{question}'")
             docs = retriever.invoke(question)
-            return {"documents": docs, "question": question}
+            
+            # Khởi tạo retry_count = 0 nếu là lần chạy đầu
+            retry_count = state.get("retry_count", 0) 
+            return {"documents": docs, "question": question, "retry_count": retry_count}
 
         def grade_documents_node(state: GraphState):
-            """Trạm 2: Đánh giá tài liệu (Chỉ báo động, TUYỆT ĐỐI KHÔNG vứt tài liệu)"""
+            """Trạm 2: Đánh giá và LỌC tài liệu (Dùng Few-Shot cho Model 1.5B)"""
             print("[CRAG] ⚖️ TRẠM 2: Đánh giá độ chính xác của tài liệu...")
             question = state["question"]
-            documents = state["documents"] # Lấy danh sách tài liệu từ Trạm 1
+            documents = state["documents"]
+            retry_count = state.get("retry_count", 0)
             
+            # PROMPT ĐƯỢC THIẾT KẾ RIÊNG CHO MODEL 1.5B (CÓ VÍ DỤ MẪU)
             prompt = PromptTemplate(
-                template="""Bạn là một giám khảo khách quan và cẩn thận. Nhiệm vụ của bạn là đánh giá xem TÀI LIỆU có liên quan hoặc hữu ích để trả lời CÂU HỎI hay không.
-                
+                template="""Bạn là một trợ lý kiểm tra dữ liệu. Hãy xem tài liệu có chứa thông tin để trả lời câu hỏi hay không.
+Chỉ trả lời "yes" hoặc "no". Không giải thích gì thêm.
+
+Ví dụ 1:
+TÀI LIỆU: Hồ Gươm nằm ở trung tâm thủ đô Hà Nội.
+CÂU HỎI: Hồ Gươm ở đâu?
+TRẢ LỜI: yes
+
+Ví dụ 2:
+TÀI LIỆU: Phở là món ăn truyền thống của Việt Nam.
+CÂU HỎI: Ai là người xây dựng Văn Miếu?
+TRẢ LỜI: no
+
+Bây giờ đến lượt bạn:
 TÀI LIỆU: {document}
 CÂU HỎI: {question}
-
-Hãy suy nghĩ kỹ. Nếu tài liệu chứa bất kỳ từ khóa, ngữ cảnh hoặc thông tin nào có thể giúp trả lời dù chỉ một phần câu hỏi, hãy chấm là 'yes'. Nếu hoàn toàn lạc đề, chấm là 'no'.
-Chỉ xuất ra MỘT TỪ DUY NHẤT (yes hoặc no), không giải thích gì thêm:""",
+TRẢ LỜI:""",
                 input_variables=["document", "question"],
             )
             
             grader_chain = prompt | self.llm
-            has_valid_doc = False # Cờ đánh dấu xem có ít nhất 1 tài liệu xài được không
+            filtered_docs = [] # Mảng chứa tài liệu SẠCH
 
             for doc in documents:
                 score_response = grader_chain.invoke({"question": question, "document": doc.page_content}).content
                 score = score_response.strip().lower()
                 
                 if "yes" in score:
-                    print("   -> 🟢 LLM đánh giá: Có liên quan")
-                    has_valid_doc = True
+                    print("   -> 🟢 Đạt: Có liên quan -> Giữ lại")
+                    filtered_docs.append(doc)
                 else:
-                    print(f"   -> 🔴 LLM đánh giá: Không liên quan (Điểm: {score})")
+                    print(f"   -> 🔴 Loại bỏ rác (LLM output: {score})")
 
-            # SỬA QUAN TRỌNG NHẤT Ở ĐÂY:
-            # Nếu LLM bảo tất cả đều là rác -> fallback = True (Kích hoạt Trạm Cứu Hộ)
-            fallback = not has_valid_doc
+            # Nếu không còn tài liệu nào sau khi lọc -> Kích hoạt Fallback
+            fallback = len(filtered_docs) == 0
             
             if fallback:
-                print("   => ⚠️ CẢNH BÁO: Không có tài liệu nào tốt, đi viết lại câu hỏi!")
+                print("   => ⚠️ KHÔNG có tài liệu tốt. Chuẩn bị cứu hộ!")
             else:
-                print("   => ✅ Gửi TOÀN BỘ tài liệu lên Trạm 3A!")
+                print("   => ✅ Đã lọc xong, chuyển tài liệu sạch lên Trạm 3A!")
 
-            # TRẢ VỀ NGUYÊN SI DANH SÁCH 'documents' GỐC, KHÔNG VỨT CÁI NÀO ĐI CẢ
-            return {"documents": documents, "fallback": fallback}
+            # TRẢ VỀ DANH SÁCH ĐÃ LỌC
+            return {"documents": filtered_docs, "fallback": fallback, "retry_count": retry_count}
 
         def rewrite_node(state: GraphState):
-            """Trạm Cứu Hộ: Viết lại câu hỏi nếu tìm kiếm lần 1 thất bại"""
+            """Trạm Cứu Hộ: Viết lại câu hỏi (Đơn giản hóa cho model 1.5B)"""
             print("[CRAG] 🔄 TRẠM CỨU HỘ: Viết lại câu hỏi để tìm kiếm lại...")
             question = state["question"]
+            retry_count = state.get("retry_count", 0) + 1 # Tăng biến đếm
             
-            # Prompt ép LLM viết lại câu hỏi rõ nghĩa hơn
             prompt = PromptTemplate(
-                template="""Bạn là một chuyên gia ngôn ngữ. Hãy viết lại câu hỏi sau thành một câu hỏi rõ ràng hơn, tối ưu hơn để tìm kiếm từ khóa trong cơ sở dữ liệu.
-Chỉ trả về đúng MỘT câu hỏi mới, TUYỆT ĐỐI không giải thích hay nói thêm gì khác.
-
+                template="""Hãy trích xuất từ khóa quan trọng nhất từ câu hỏi dưới đây để tìm kiếm. Chỉ in ra từ khóa, không in gì thêm.
 Câu hỏi gốc: {question}
-Câu hỏi mới:""",
+Từ khóa:""",
                 input_variables=["question"],
             )
             
             better_question = (prompt | self.llm).invoke({"question": question}).content.strip()
-            print(f"   -> Câu hỏi mới: {better_question}")
+            print(f"   -> Câu hỏi mới (Từ khóa): {better_question}")
             
-            # Dùng câu hỏi mới để tìm kiếm lại trong VectorDB
             new_docs = retriever.invoke(better_question)
             
-            return {"documents": new_docs, "question": better_question}
+            return {"documents": new_docs, "question": better_question, "retry_count": retry_count}
 
         def generate_node(state: GraphState):
-            """Trạm 3A: Tạo câu trả lời nếu tài liệu tốt"""
+            """Trạm 3A: Tạo câu trả lời nhập vai NPC"""
             print("[CRAG] 📝 TRẠM 3A: Tổng hợp câu trả lời...")
             question = state["question"]
             documents = state["documents"]
             
             context = "\n\n".join([f"[Nguồn: {d.metadata.get('dia_diem', 'Chung')}]\n{d.page_content}" for d in documents])
             
-            # PROMPT ĐÃ SIẾT CHẶT: Bê nguyên cấu trúc chặt chẽ của Offline_RAG sang
+            # PROMPT NHẬP VAI NPC HƯỚNG DẪN VIÊN
             prompt = PromptTemplate(
-                template="""Hãy đọc kỹ <ngu_canh> dưới đây để trả lời <câu_hỏi>. 
+                template="""Bạn là một NPC hướng dẫn viên du lịch ảo nhiệt tình, am hiểu sâu sắc về văn hóa, lịch sử và địa danh Hà Nội.
+Nhiệm vụ của bạn là giải đáp thắc mắc cho du khách một cách tự nhiên dựa trên <ngu_canh> dưới đây.
 
 <ngu_canh>
 {context}
 </ngu_canh>
 
-<câu_hỏi>
+<câu_hỏi_của_du_khách>
 {question}
-</câu_hỏi>
+</câu_hỏi_của_du_khách>
 
 Hướng dẫn trả lời:
-- Hãy tìm thông tin trong <ngu_canh> khớp với ý nghĩa của <câu_hỏi> (không cần phải giống hệt từng chữ, ví dụ "có nghề làm đồ mã" có thể dùng để trả lời cho câu hỏi "bán đồ mã").
-- Viết câu trả lời ngắn gọn, chính xác dựa trên <ngu_canh>.
-- Chỉ khi nào <ngu_canh> hoàn toàn lạc đề và không có bất kỳ thông tin nào liên quan, bạn mới được phép trả lời đúng câu này: 'Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác'.
+- Hãy trả lời ngắn gọn, lịch sự và chính xác những gì có trong <ngu_canh>.
+- TUYỆT ĐỐI KHÔNG tự ý suy diễn hay bịa đặt thông tin không có trong <ngu_canh>.
+- Nếu <ngu_canh> không có thông tin, bạn BẮT BUỘC trả lời: 'Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác'.
 Trả lời:""",
                 input_variables=["context", "question"],
             )
@@ -337,7 +341,7 @@ Trả lời:""",
             return {"generation": response}
 
         def refuse_node(state: GraphState):
-            """Trạm 3B: Từ chối trả lời nếu tài liệu sai (Luật Zero-Hallucination)"""
+            """Trạm 3B: Từ chối trả lời (Luật Zero-Hallucination)"""
             print("[CRAG] 🛑 TRẠM 3B: Kích hoạt luật Zero-Hallucination (Từ chối trả lời)")
             tu_choi = "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác."
             return {"generation": tu_choi}
@@ -346,8 +350,11 @@ Trả lời:""",
         # ĐỊNH NGHĨA RẼ NHÁNH (CONDITIONAL EDGES)
         # ==========================================
         def decide_to_generate(state: GraphState):
-            # NẾU THẤT BẠI TRONG ĐÁNH GIÁ (FALLBACK = TRUE) -> CHẠY VÀO TRẠM CỨU HỘ
             if state["fallback"]:
+                # Nếu đã cứu hộ 1 lần mà VẪN fallback -> ĐẦU HÀNG, KHÔNG LẶP VÔ HẠN
+                if state.get("retry_count", 0) >= 1:
+                    print("   => ❌ Cứu hộ thất bại, từ chối trả lời!")
+                    return "refuse"
                 return "rewrite"
             return "generate"
 
@@ -367,27 +374,25 @@ Trả lời:""",
         
         workflow.add_conditional_edges("grade", decide_to_generate, {
             "generate": "generate",
-            "rewrite": "rewrite"
+            "rewrite": "rewrite",
+            "refuse": "refuse" # Thêm nhánh nối đến Trạm 3B
         })
         
-        workflow.add_edge("rewrite", "generate")
+        # SỬA QUAN TRỌNG: Viết lại câu hỏi xong phải quay lại đánh giá tài liệu mới
+        workflow.add_edge("rewrite", "grade") 
         workflow.add_edge("generate", END)
         workflow.add_edge("refuse", END)
         
         crag_app = workflow.compile()
 
         # ==========================================
-        # BỌC LẠI THÀNH RUNNABLE ĐỂ KHÔNG PHÁ VỠ APP.PY
+        # BỌC LẠI THÀNH RUNNABLE
         # ==========================================
         def run_crag_flow(inputs: dict) -> str:
             question = inputs.get("question", "")
-            # Chạy đồ thị
             final_state = crag_app.invoke({"question": question})
-            # Lấy text thô từ đồ thị
             raw_generation = final_state["generation"]
-            # Cho qua máy chém văn phong trước khi xuất ra
             final_generation = may_chem_van_phong(raw_generation)
             return final_generation
 
-        # Trả về một chuỗi tương thích hoàn toàn với LangServe / FastAPI
         return RunnableLambda(run_crag_flow)
