@@ -59,7 +59,7 @@ if __name__ == "__main__":
     
     # 1. KHỞI TẠO HỆ THỐNG (Giữ nguyên)
     print("Khởi tạo model và VectorDB...")
-    llm = get_ollama_llm(model_name="qwen2.5:1.5b")
+    llm = get_ollama_llm(model_name="qwen2.5:7b")
     doc_loaded = Loader().load_dir("./data_source/generative_ai", workers=2)
     retriever = VectorDB(documents=doc_loaded).get_retriever(search_kwargs={"k": 3})
 
@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
     # 2. ĐỌC ĐỀ THI
     print("\n--- ĐANG ĐỌC DỮ LIỆU TỪ TEST100.JSON ---")
-    with open(r"D:\nckh_prj\rag_kaka\test100.json", "r", encoding="utf-8") as f:
+    with open(r"test100.json", "r", encoding="utf-8") as f:
         test_data = json.load(f)
     
     test_questions = test_data["question"]
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     )
     ragas_llm = LangchainLLMWrapper(evaluator_llm)
 
-    evaluator_embeddings = HuggingFaceEmbeddings(model_name="keepitreal/vietnamese-sbert")
+    ragas_embeddings = LangchainEmbeddingsWrapper(HuggingFaceEmbeddings(model_name="bkai-foundation-models/vietnamese-bi-encoder"))
     ragas_embeddings = LangchainEmbeddingsWrapper(evaluator_embeddings)
 
     safe_config = RunConfig(max_workers=1, max_retries=3)

@@ -2,7 +2,7 @@
 from langchain_ollama import ChatOllama
 from langchain_huggingface import HuggingFaceEndpoint
 
-def get_ollama_llm(model_name: str = "qwen-hanoi", base_url: str = "http://host.docker.internal:11434", **kwargs):
+def get_ollama_llm(model_name: str = "qwen2.5:7b", base_url: str = "http://localhost:11434", **kwargs):
     print(f"🔌 Đang kết nối tới Ollama tại {base_url} với model: {model_name}...")
     try:
         llm = ChatOllama(
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     print("--- ĐANG TEST KẾT NỐI OLLAMA ---")
     try:
         # Gọi hàm khởi tạo (Test thẳng model hanoi_tour_guide của bạn)
-        my_llm = get_ollama_llm(model_name="qwen-hanoi")
+        my_llm = get_ollama_llm(model_name="qwen2.5:7b")
         
         # Thử hỏi một câu
         question = "Bạn có biết Hồ Gươm ở đâu không?"

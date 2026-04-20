@@ -5,7 +5,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 class VectorDB:
     def __init__(self,documents=None,vector_db:Union[Chroma,FAISS]=Chroma,
-        embedding=HuggingFaceEmbeddings(model_name="keepitreal/vietnamese-sbert"))->None:
+        embedding=HuggingFaceEmbeddings(model_name="bkai-foundation-models/vietnamese-bi-encoder"))->None:
         self.vector_db=vector_db
         self.embedding=embedding
         self.db=self._built_db(documents)
