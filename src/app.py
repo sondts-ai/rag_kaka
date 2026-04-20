@@ -6,27 +6,30 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from langserve import add_routes
 from src.base.llm_model import get_ollama_llm
-#from src.base.llm_model import get_hf_llm
 from src.rag.main import build_rag_chain, InputQA, OutputQA
 from src.chat.main import build_chat_chain
+from src.rag.file_loader import Loader
+from src.rag.vectorstore import VectorDB
+# ==========================================
+# GỌI MODEL QUA OLLAMA (Chạy Local 100%)
+# ==========================================
+# Không cần dùng HF_TOKEN hay get_hf_llm nữa, 
+# Gọi thẳng model "hanoi_tour_guide" mà bạn vừa nạp vào Ollama
 
 
-
-llm = get_ollama_llm(model_name="llama3.2")
-# COLAB_URL = "https://48fdb4c47b72.ngrok-free.app"
-# llm = get_ollama_llm(base_url=COLAB_URL, model_name="llama3.1")
 genai_docs = "./data_source/generative_ai"
+llm = get_ollama_llm(model_name="qwen2.5:1.5b")
+doc_loaded = Loader().load_dir(genai_docs, workers=2)
+retriever = VectorDB(documents=doc_loaded).get_retriever(search_kwargs={"k": 2}) # Gợi ý để k=3 để tránh nhiễu
 
 # --------- Chains----------------
+genai_chain = build_rag_chain(llm, data_dir=genai_docs)
 
-genai_chain = build_rag_chain(llm, data_dir=genai_docs, data_type="pdf")
-
+# Truyền thêm retriever vào chat_chain
 chat_chain = build_chat_chain(llm, 
+                              retriever=retriever, # Đưa bộ tìm kiếm tài liệu vào đây
                               history_folder="./chat_histories",
                               max_history_length=6)
-
-
-# --------- App - FastAPI ----------------
 
 app = FastAPI(
     title="LangChain Server",
@@ -43,7 +46,6 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# --------- Routes - FastAPI ----------------
 
 @app.get("/check")
 async def check():
@@ -52,16 +54,18 @@ async def check():
 
 @app.post("/generative_ai", response_model=OutputQA)
 async def generative_ai(inputs: InputQA):
-    answer = genai_chain.invoke(inputs.question)
+    # API tự viết của bạn: Bọc inputs.question vào dictionary
+    answer = genai_chain.invoke({"question": inputs.question})
     return {"answer": answer}
 
 
-# --------- Langserve Routes - Playground ----------------
+# Đổi path thành /genai_langserve để tránh xung đột với @app.post("/generative_ai")
 add_routes(app, 
            genai_chain, 
-           path="/generative_ai",
-           input_type=InputQA,    # <--- Thêm dòng này (Truyền Class, KHÔNG có ngoặc đơn)
+           path="/genai_langserve",
+           input_type=InputQA,   
            output_type=OutputQA)
+
 add_routes(app,
            chat_chain,
            path="/chat")
