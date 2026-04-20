@@ -1,5 +1,5 @@
 # [File: src/base/llm_model.py]
-from langchain_community.chat_models import ChatOllama # Đã đổi sang ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_huggingface import HuggingFaceEndpoint
 
 def get_ollama_llm(model_name: str = "qwen-hanoi", base_url: str = "http://localhost:11434", **kwargs):

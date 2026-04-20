@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+langserve
+sse-starlette
+langchain-core
+langchain-community
+langchain-ollama
+langchain-huggingface
+langchain-chroma
+langchain-text-splitters
+langgraph
+chromadb
+faiss-cpu
+sentence-transformers
+tqdm
+pydantic

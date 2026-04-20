@@ -18,7 +18,8 @@ from src.rag.vectorstore import VectorDB
 
 
 genai_docs = "./data_source/generative_ai"
-llm = get_ollama_llm(model_name="qwen2.5:1.5b")
+ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+llm = get_ollama_llm(model_name="qwen2.5:1.5b", base_url=ollama_base_url)
 doc_loaded = Loader().load_dir(genai_docs, workers=2)
 retriever = VectorDB(documents=doc_loaded).get_retriever(search_kwargs={"k": 2}) # Gợi ý để k=3 để tránh nhiễu
 
