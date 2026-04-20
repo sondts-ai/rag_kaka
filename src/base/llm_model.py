@@ -2,7 +2,7 @@
 from langchain_ollama import ChatOllama
 from langchain_huggingface import HuggingFaceEndpoint
 
-def get_ollama_llm(model_name: str = "qwen-hanoi", base_url: str = "http://localhost:11434", **kwargs):
+def get_ollama_llm(model_name: str = "qwen-hanoi", base_url: str = "http://host.docker.internal:11434", **kwargs):
     print(f"🔌 Đang kết nối tới Ollama tại {base_url} với model: {model_name}...")
     try:
         llm = ChatOllama(
