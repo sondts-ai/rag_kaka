@@ -11,9 +11,9 @@ from src.rag.file_loader import Loader
 from src.rag.offline_rag import Offline_RAG as Naive_RAG
 from src.rag.crag import Offline_RAG as CRAG
 
-# Import 2 chiến lược tìm kiếm
-from src.rag.vectorstore import VectorDB as VectorDB_MMR
-from src.rag.vectorstore2 import VectorDB as VectorDB_Similarity
+# --- ĐÃ SỬA: Import 2 chiến lược tìm kiếm (Thô và Tinh) ---
+from src.rag.vectorstore2 import VectorDB as VectorDB_Similarity # File chỉ dùng Similarity (K=3)
+from src.rag.vectorstore import VectorDB as VectorDB_Rerank    # File đã cấu hình Similarity (K=15) + BAAI Reranker (Top 3)
 
 # Import Ragas
 from ragas import evaluate
@@ -57,20 +57,25 @@ class SafeDeepSeekChat(ChatOpenAI):
 # CHƯƠNG TRÌNH CHÍNH
 # ======================================================================
 if __name__ == "__main__":
-    # 1. Khởi tạo LLM và VectorDB
+    # 1. Khởi tạo model và VectorDB
     print("Khởi tạo model và VectorDB...")
-    llm = get_ollama_llm(model_name="qwen2.5:1.5b")
+    # Vì đang chạy trên V100, bạn dùng qwen2.5:7b sẽ cho câu trả lời mượt hơn rất nhiều so với 1.5b
+    llm = get_ollama_llm(model_name="qwen2.5:7b") 
     doc_loaded = Loader().load_dir("./data_source/generative_ai", workers=2)
     
-    retriever_mmr = VectorDB_MMR(documents=doc_loaded).get_retriever(search_kwargs={"k": 3})
+    # --- ĐÃ SỬA: Khởi tạo 2 loại Retriever ---
+    # Retriever 1: Thuần Similarity, lấy luôn K=3 (File vectorstore2.py)
     retriever_sim = VectorDB_Similarity(documents=doc_loaded).get_retriever(search_kwargs={"k": 3})
+    
+    # Retriever 2: Gọi thẳng hàm đã nâng cấp Re-rank, bên trong file bạn đã set sẵn k=15 và Top=3 rồi (File vectorstore.py)
+    retriever_rerank = VectorDB_Rerank(documents=doc_loaded).get_retriever()
 
     # Khởi tạo 4 cấu hình RAG để thi đấu
     chains = {
         "Naive_RAG_Similarity": Naive_RAG(llm).get_chain(retriever_sim),
-        "Naive_RAG_MMR": Naive_RAG(llm).get_chain(retriever_mmr),
+        "Naive_RAG_Rerank": Naive_RAG(llm).get_chain(retriever_rerank),
         "CRAG_Similarity": CRAG(llm).get_chain(retriever_sim),
-        "CRAG_MMR": CRAG(llm).get_chain(retriever_mmr)
+        "CRAG_Rerank": CRAG(llm).get_chain(retriever_rerank)
     }
 
     # 2. Đọc dữ liệu thi
@@ -80,10 +85,11 @@ if __name__ == "__main__":
     ground_truths = test_data["ground_truth"]
 
     # 3. Cấu hình Giám khảo DeepSeek
-    os.environ["DEEPSEEK_API_KEY"] = "sk-24d7353b773b4653b642a0300fccaaeb" # Nhớ thay API của bạn
+    os.environ["DEEPSEEK_API_KEY"] = "sk-24d7353b773b4653b642a0300fccaaeb" # Nhớ thay API của bạn nếu cần
     evaluator_llm = SafeDeepSeekChat(model="deepseek-chat", api_key=os.environ["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com", temperature=0)
     ragas_llm = LangchainLLMWrapper(evaluator_llm)
-    ragas_embeddings = LangchainEmbeddingsWrapper(HuggingFaceEmbeddings(model_name="keepitreal/vietnamese-sbert"))
+    # Ragas cần embedding để tính answer_relevancy
+    ragas_embeddings = LangchainEmbeddingsWrapper(HuggingFaceEmbeddings(model_name="bkai-foundation-models/vietnamese-bi-encoder")) 
     safe_config = RunConfig(max_workers=1, max_retries=3)
 
     # ĐỂ TRÁNH LỖI DEEPSEEK, CHIA METRICS LÀM 2 LÔ (BATCHES)
@@ -97,8 +103,8 @@ if __name__ == "__main__":
         print(f"\n{'='*50}\nĐANG CHẠY KỊCH BẢN: {chain_name}\n{'='*50}")
         answers, contexts = [], []
         
-        # Xác định dùng retriever nào để lấy đúng context cho log
-        current_retriever = retriever_mmr if "MMR" in chain_name else retriever_sim
+        # Xác định dùng retriever nào để lấy đúng context cho Ragas chấm
+        current_retriever = retriever_rerank if "Rerank" in chain_name else retriever_sim
 
         # Xin câu trả lời từ RAG
         for q in test_questions:
@@ -129,36 +135,25 @@ if __name__ == "__main__":
         )
         df_batch_2 = res_batch_2.to_pandas()
 
-        # --- GỘP HAI KẾT QUẢ LẠI BẰNG PANDAS (CÁCH MỚI AN TOÀN HƠN) ---
+        # --- GỘP HAI KẾT QUẢ ---
         df_merged = df_batch_1.copy()
         
-        # In danh sách cột để dễ debug nếu DeepSeek bị lỗi ngầm
-        print(f"[{chain_name}] Các cột trả về ở Đợt 2: {df_batch_2.columns.tolist()}")
-
-        # Lấy trực tiếp cột điểm của Đợt 2 đắp sang Đợt 1 một cách an toàn
+        # Lấy trực tiếp cột điểm của Đợt 2 đắp sang Đợt 1 an toàn
         if 'answer_relevancy' in df_batch_2.columns:
             df_merged['answer_relevancy'] = df_batch_2['answer_relevancy']
-        else:
-            df_merged['answer_relevancy'] = None
-            print(f"⚠️ Cảnh báo: Không tìm thấy 'answer_relevancy' trong Đợt 2 của {chain_name}")
-            
         if 'context_recall' in df_batch_2.columns:
             df_merged['context_recall'] = df_batch_2['context_recall']
-        else:
-            df_merged['context_recall'] = None
-            print(f"⚠️ Cảnh báo: Không tìm thấy 'context_recall' trong Đợt 2 của {chain_name}")
 
         # Gắn tên chiến lược (Experiment) để phân biệt sau này
         df_merged['Experiment'] = chain_name
         all_results_df.append(df_merged)
 
-        # In kết quả trung bình của mô hình này
+        # In kết quả trung bình
         print(f"\n=> KẾT QUẢ TỔNG HỢP CỦA {chain_name}:")
-        # Kiểm tra xem các cột có tồn tại trước khi tính mean() để tránh lỗi
         cols_to_mean = [col for col in ['faithfulness', 'context_precision', 'answer_relevancy', 'context_recall'] if col in df_merged.columns]
         print(df_merged[cols_to_mean].mean())
 
-    # 5. Lưu toàn bộ file Excel/CSV
+    # 5. Lưu toàn bộ file CSV
     final_df = pd.concat(all_results_df, ignore_index=True)
     final_df.to_csv("rag_comparison_results.csv", index=False, encoding="utf-8-sig")
     print("\n✅ HOÀN TẤT! Đã lưu toàn bộ kết quả của 4 hệ thống vào 'rag_comparison_results.csv'.")
