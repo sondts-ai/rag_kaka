@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from langserve import add_routes
 from src.base.llm_model import get_ollama_llm
 from src.rag.main import build_rag_chain, InputQA, OutputQA
-from src.chat.main import build_chat_chain
+from src.chat.main import build_chat_chain, InputChat
 from src.rag.file_loader import Loader
 from src.rag.vectorstore import VectorDB
 # ==========================================
@@ -18,10 +18,10 @@ from src.rag.vectorstore import VectorDB
 
 
 genai_docs = "./data_source/generative_ai"
-ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
-llm = get_ollama_llm(model_name="qwen2.5:1.5b", base_url=ollama_base_url)
+ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+llm = get_ollama_llm(model_name="qwen2.5:7b", base_url=ollama_base_url)
 doc_loaded = Loader().load_dir(genai_docs, workers=2)
-retriever = VectorDB(documents=doc_loaded).get_retriever(search_kwargs={"k": 2}) # Gợi ý để k=3 để tránh nhiễu
+retriever = VectorDB(documents=doc_loaded).get_retriever() 
 
 # --------- Chains----------------
 genai_chain = build_rag_chain(llm, data_dir=genai_docs)
@@ -69,4 +69,6 @@ add_routes(app,
 
 add_routes(app,
            chat_chain,
-           path="/chat")
+           path="/chat",
+           input_type=InputChat,
+           output_type=str)
