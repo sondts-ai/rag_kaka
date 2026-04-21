@@ -41,15 +41,15 @@
     "Hãy so sánh mặt hàng kinh doanh truyền thống của phố Hàng Hòm và phố Hàng Trống?",
     "Tên gọi phố Hàng Buồm và Hàng Đào có điểm chung gì về nguồn gốc đặt tên?",
     "Nếu tôi cần mua đồ thờ cúng, tôi nên đến Hàng Mã hay Hàng Đào?",
-    "Nghề làm lọng ở Hàng Trống và nghề đan cót ở Hàng Cót, nghề nào liên quan đến giấy nhiều hơn?",
-    "Giá vé máy bay từ TPHCM đi Hà Nội hôm nay là bao nhiêu?",
-    "Cửa hàng bún chả nổi tiếng nhất ở phố Hàng Buồm tên là gì?",
-    "Ai là tổng thống Mỹ hiện tại?",
-    "Phố Hàng Đào có cửa hàng nào bán iPhone 15 Pro Max không?",
-    "Dân số quận Hoàn Kiếm năm nay là bao nhiêu?",
-    "Phố Hàng Mã mở cửa đón khách từ mấy giờ đến mấy giờ hàng ngày?",
-    "Bitcoin giá bao nhiêu ngày hôm nay?",
-    "Vua Lê Thái Tổ đã từng đi dạo qua phố Hàng Trống vào năm nào?"
+    "Lăng Chủ tịch Hồ Chí Minh được khánh thành vào ngày tháng năm nào?",
+    "Chữ 'CHỦ TỊCH HỒ-CHÍ-MINH' trên đỉnh lăng Bác được ghép bằng loại đá gì và từ đâu mang về?",
+    "Phía trước và phía sau Lăng Bác trồng bao nhiêu cây vạn tuế và mang ý nghĩa gì?",
+    "Văn Miếu được xây dựng vào năm nào và dưới triều vua nào?",
+    "Công trình nào tại Văn Miếu - Quốc Tử Giám được chọn làm biểu tượng của thủ đô Hà Nội?",
+    "Hiện nay tại Văn Miếu - Quốc Tử Giám còn lưu giữ bao nhiêu tấm bia Tiến sĩ?",
+    "Hồ Hoàn Kiếm trước kia từng có những tên gọi nào khác?",
+    "Ai là người cho xây dựng cầu Thê Húc dẫn vào đền Ngọc Sơn và vào năm nào?",
+    "Diện tích của Hồ Hoàn Kiếm là khoảng bao nhiêu?"
   ],
   "ground_truth": [
     "Phố Hàng Buồm nằm trong khu phố cổ Hà Nội, thuộc quận Hoàn Kiếm.",
@@ -93,14 +93,14 @@
     "Hàng Hòm chuyên làm rương, hòm gỗ; Hàng Trống chuyên làm lọng, trống và tranh dân gian.",
     "Cả hai đều bắt nguồn từ mặt hàng buôn bán đặc trưng (buồm cho thuyền và lụa nhuộm màu hoa đào).",
     "Hàng Mã.",
-    "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác.",
-    "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác.",
-    "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác.",
-    "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác.",
-    "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác.",
-    "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác.",
-    "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác.",
-    "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác.",
-    "Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác."
+    "Lăng Chủ tịch Hồ Chí Minh được khánh thành vào ngày 29 tháng 8 năm 1975.",
+    "Chữ 'CHỦ TỊCH HỒ-CHÍ-MINH' được ghép bằng đá ngọc màu đỏ thẫm của Cao Bằng.",
+    "Phía trước và phía sau lăng trồng 79 cây vạn tuế tượng trưng cho 79 năm tuổi đời của Chủ tịch Hồ Chí Minh.",
+    "Văn Miếu được xây dựng từ năm 1070, dưới thời vua Lý Thánh Tông.",
+    "Khuê Văn Các tại Văn Miếu - Quốc Tử Giám đã được công nhận là biểu tượng của thành phố Hà Nội.",
+    "Hiện nay tại Văn Miếu - Quốc Tử Giám còn lưu giữ 82 tấm bia Tiến sĩ.",
+    "Trước kia, hồ Hoàn Kiếm còn có các tên gọi là hồ Lục Thủy, hồ Thủy Quân, hồ Tả Vọng và Hữu Vọng.",
+    "Danh sĩ Nguyễn Văn Siêu cho xây dựng cầu Thê Húc vào năm 1865.",
+    "Hồ Hoàn Kiếm có diện tích khoảng 12 ha."
   ]
 }
