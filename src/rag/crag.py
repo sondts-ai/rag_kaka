@@ -1,5 +1,3 @@
-
-# 
 import re
 from typing import List, TypedDict
 from langchain_core.runnables import RunnableLambda
@@ -53,23 +51,22 @@ class Offline_RAG:
             print(f"\n[CRAG] 🔎 TRẠM 1: Tìm kiếm tài liệu cho câu hỏi: '{question}'")
             docs = retriever.invoke(question)
             
-            # Sửa lỗi NoneType: Dùng `or 0` để ép về số nguyên nếu state đang chứa None
+            # Sửa lỗi NoneType
             retry_count = state.get("retry_count") or 0 
             return {"documents": docs, "question": question, "retry_count": retry_count}
 
         def grade_documents_node(state: GraphState):
-            """Trạm 2: Đánh giá và LỌC tài liệu (Dùng Few-Shot cho Model 1.5B)"""
+            """Trạm 2: Đánh giá và LỌC tài liệu"""
             print("[CRAG] ⚖️ TRẠM 2: Đánh giá độ chính xác của tài liệu...")
             question = state["question"]
             documents = state["documents"]
             
-            # Sửa lỗi NoneType
             retry_count = state.get("retry_count") or 0
             
-            # PROMPT ĐƯỢC THIẾT KẾ RIÊNG CHO MODEL 1.5B (CÓ VÍ DỤ MẪU)
+            # PROMPT ĐÁNH GIÁ: Đã thêm ví dụ số 3 để dạy model giữ lại tài liệu phản biện
             prompt = PromptTemplate(
                 template="""Bạn là một trợ lý kiểm tra dữ liệu. Hãy xem tài liệu có chứa thông tin để trả lời câu hỏi hay không.
-Chỉ trả lời "yes" hoặc "no". Không giải thích gì thêm.
+Chỉ trả lời DUY NHẤT một từ tiếng Anh là "yes" hoặc "no". TUYỆT ĐỐI KHÔNG dùng tiếng Việt, KHÔNG giải thích gì thêm.
 
 Ví dụ 1:
 TÀI LIỆU: Hồ Gươm nằm ở trung tâm thủ đô Hà Nội.
@@ -81,6 +78,11 @@ TÀI LIỆU: Phở là món ăn truyền thống của Việt Nam.
 CÂU HỎI: Ai là người xây dựng Văn Miếu?
 TRẢ LỜI: no
 
+Ví dụ 3:
+TÀI LIỆU: 82 bia tiến sĩ được dựng từ năm 1484 đến 1780.
+CÂU HỎI: 82 bia tiến sĩ được dựng cùng 1 năm đúng không?
+TRẢ LỜI: yes
+
 Bây giờ đến lượt bạn:
 TÀI LIỆU: {document}
 CÂU HỎI: {question}
@@ -89,13 +91,14 @@ TRẢ LỜI:""",
             )
             
             grader_chain = prompt | self.llm
-            filtered_docs = [] # Mảng chứa tài liệu SẠCH
+            filtered_docs = []
 
             for doc in documents:
                 score_response = grader_chain.invoke({"question": question, "document": doc.page_content}).content
                 score = score_response.strip().lower()
                 
-                if "yes" in score:
+                # Bắt nới lỏng thêm tiếng Việt đề phòng LLM cứng đầu
+                if "yes" in score or "có" in score or "đạt" in score:
                     print("   -> 🟢 Đạt: Có liên quan -> Giữ lại")
                     filtered_docs.append(doc)
                 else:
@@ -109,11 +112,10 @@ TRẢ LỜI:""",
             else:
                 print("   => ✅ Đã lọc xong, chuyển tài liệu sạch lên Trạm 3A!")
 
-            # TRẢ VỀ DANH SÁCH ĐÃ LỌC
             return {"documents": filtered_docs, "fallback": fallback, "retry_count": retry_count}
 
         def rewrite_node(state: GraphState):
-            """Trạm Cứu Hộ: Viết lại câu hỏi (Đơn giản hóa cho model 1.5B)"""
+            """Trạm Cứu Hộ: Viết lại câu hỏi"""
             print("[CRAG] 🔄 TRẠM CỨU HỘ: Viết lại câu hỏi để tìm kiếm lại...")
             question = state["question"]
             
@@ -135,30 +137,26 @@ Từ khóa:""",
             return {"documents": new_docs, "question": better_question, "retry_count": retry_count}
 
         def generate_node(state: GraphState):
-            """Trạm 3A: Tạo câu trả lời nhập vai NPC"""
+            """Trạm 3A: Tổng hợp câu trả lời tiêu chuẩn (Cho phép dùng logic)"""
             print("[CRAG] 📝 TRẠM 3A: Tổng hợp câu trả lời...")
             question = state["question"]
             documents = state["documents"]
             
             context = "\n\n".join([f"[Nguồn: {d.metadata.get('dia_diem', 'Chung')}]\n{d.page_content}" for d in documents])
             
-            # PROMPT NHẬP VAI NPC HƯỚNG DẪN VIÊN
+            # PROMPT SINH CÂU TRẢ LỜI: Đã cởi trói để model được dùng logic cơ bản
             prompt = PromptTemplate(
-                template="""Bạn là một NPC hướng dẫn viên du lịch ảo nhiệt tình, am hiểu sâu sắc về văn hóa, lịch sử và địa danh Hà Nội.
-Nhiệm vụ của bạn là giải đáp thắc mắc cho du khách một cách tự nhiên dựa trên <ngu_canh> dưới đây.
+                template="""Sử dụng <ngu_canh> dưới đây để trả lời câu hỏi. 
+- Chỉ trả lời trực tiếp vào trọng tâm, ngắn gọn, súc tích.
+- Bạn được phép dùng logic cơ bản để đối chiếu thông tin trong <ngu_canh> nhằm xác nhận Đúng/Sai cho các câu hỏi nghi vấn.
+- TUYỆT ĐỐI KHÔNG thêm các câu chào hỏi, xưng hô.
+- Nếu <ngu_canh> hoàn toàn không chứa dữ kiện nào để suy luận, BẮT BUỘC trả lời chính xác nguyên văn: 'Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác'.
 
 <ngu_canh>
 {context}
 </ngu_canh>
 
-<câu_hỏi_của_du_khách>
-{question}
-</câu_hỏi_của_du_khách>
-
-Hướng dẫn trả lời:
-- Hãy trả lời ngắn gọn, lịch sự và chính xác những gì có trong <ngu_canh>.
-- TUYỆT ĐỐI KHÔNG tự ý suy diễn hay bịa đặt thông tin không có trong <ngu_canh>.
-- Nếu <ngu_canh> không có thông tin, bạn BẮT BUỘC trả lời: 'Tôi không biết, tôi không có thông tin về nó và không trả lời thêm thông tin nào khác'.
+Câu hỏi: {question}
 Trả lời:""",
                 input_variables=["context", "question"],
             )
@@ -178,7 +176,6 @@ Trả lời:""",
         # ==========================================
         def decide_to_generate(state: GraphState):
             if state["fallback"]:
-                # Sửa lỗi NoneType
                 retry_count = state.get("retry_count") or 0
                 
                 # Nếu đã cứu hộ 1 lần mà VẪN fallback -> ĐẦU HÀNG, KHÔNG LẶP VÔ HẠN
@@ -205,7 +202,7 @@ Trả lời:""",
         workflow.add_conditional_edges("grade", decide_to_generate, {
             "generate": "generate",
             "rewrite": "rewrite",
-            "refuse": "refuse" # Thêm nhánh nối đến Trạm 3B
+            "refuse": "refuse"
         })
         
         # SỬA QUAN TRỌNG: Viết lại câu hỏi xong phải quay lại đánh giá tài liệu mới
