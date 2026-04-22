@@ -80,7 +80,7 @@ if __name__ == "__main__":
     ground_truths = test_data["ground_truth"]
 
     # 3. Cấu hình Giám khảo DeepSeek
-    os.environ["DEEPSEEK_API_KEY"] = "sk-cc35d6988f354325b410443c11518d35" # Nhớ thay API của bạn
+    os.environ["DEEPSEEK_API_KEY"] = "sk-0f2090983b3c492588c88bd91e7c0b57" # Nhớ thay API của bạn
     evaluator_llm = SafeDeepSeekChat(model="deepseek-chat", api_key=os.environ["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com", temperature=0)
     ragas_llm = LangchainLLMWrapper(evaluator_llm)
     ragas_embeddings = LangchainEmbeddingsWrapper(HuggingFaceEmbeddings(model_name="keepitreal/vietnamese-sbert"))
