@@ -1,0 +1,17 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv
+venv
+.idea
+.vscode
+docker
+docker-compose.yml
+chroma
+faiss_index
+vectorstore
+chat_histories

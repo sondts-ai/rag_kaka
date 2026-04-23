@@ -1,0 +1,20 @@
+services:
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-kaka-api
+    ports:
+      - "8000:8000"
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: ./data_source
+        target: /app/data_source
+      - type: bind
+        source: ./chat_histories
+        target: /app/chat_histories
+    restart: unless-stopped

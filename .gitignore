@@ -19,11 +19,11 @@ venv/
 # ===== Docker  =====
 
 docker/
-docker-compose.yml
-.dockerignore
+
+
 
 # ===== Executables / tunnels =====
-cloudflared.exe
+
 
 # ===== IDE / OS =====
 .vscode/
