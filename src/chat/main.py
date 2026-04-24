@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from operator import itemgetter
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnableLambda
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from src.chat.history import create_session_factory
 from src.chat.output_parser import Str_OutputParser
@@ -38,7 +39,7 @@ def build_chat_chain(llm, retriever, history_folder, max_history_length):
         
         # Bước 1: Kiểm tra xem có lịch sử không để dịch câu hỏi
         if len(chat_history) > 0:
-            condenser = condense_prompt | llm | StrOutputParser()
+            condenser = condense_prompt | llm | Str_OutputParser()
             standalone_question = condenser.invoke({
                 "chat_history": chat_history,
                 "human_input": human_input
