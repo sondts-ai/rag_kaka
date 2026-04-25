@@ -115,19 +115,18 @@ TRẢ LỜI:""",
             return {"documents": filtered_docs, "fallback": fallback, "retry_count": retry_count}
 
         def rewrite_node(state: GraphState):
-            """Trạm Cứu Hộ: Viết lại câu hỏi"""
-            print("[CRAG] 🔄 TRẠM CỨU HỘ: Viết lại câu hỏi để tìm kiếm lại...")
+            print("[CRAG] 🔄 TRẠM CỨU HỘ: Tối ưu hóa truy vấn...")
             question = state["question"]
-            
-            # Sửa lỗi NoneType và tăng biến đếm
             retry_count = (state.get("retry_count") or 0) + 1 
             
             prompt = PromptTemplate(
-                template="""Hãy trích xuất từ khóa quan trọng nhất từ câu hỏi dưới đây để tìm kiếm. Chỉ in ra từ khóa, không in gì thêm.
-Câu hỏi gốc: {question}
-Từ khóa:""",
+                template="""Bạn là chuyên gia về địa danh Hà Nội. Hãy viết lại câu hỏi sau để công cụ tìm kiếm dễ tìm thấy tài liệu nhất. 
+        Thêm các từ khóa liên quan như "lịch sử", "địa chỉ", "kiến trúc" nếu cần thiết.
+        Câu hỏi gốc: {question}
+        Câu hỏi tối ưu:""",
                 input_variables=["question"],
             )
+            # ... logic invoke và retrieve ...
             
             better_question = (prompt | self.llm).invoke({"question": question}).content.strip()
             print(f"   -> Câu hỏi mới (Từ khóa): {better_question}")

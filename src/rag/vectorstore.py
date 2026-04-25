@@ -14,6 +14,6 @@ class VectorDB:
         return db
     
     # Cập nhật lại hàm get_retriever
-    def get_retriever(self, search_type: str = "mmr", search_kwargs: dict = {"k": 3, "fetch_k": 10}):
+    def get_retriever(self, search_type: str = "mmr", search_kwargs: dict = {"k": 4, "fetch_k": 15}):
         retriever = self.db.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
         return retriever

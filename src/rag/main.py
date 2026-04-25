@@ -50,7 +50,10 @@ def build_rag_chain(llm, data_dir):
     doc_loaded = Loader().load_dir(data_dir, workers=2)
     
     # 2. Tạo VectorDB và Retriever (k=3)
-    retriever = VectorDB(documents=doc_loaded).get_retriever(search_kwargs={"k": 3})
+    retriever = VectorDB(documents=doc_loaded).get_retriever(
+    search_type="mmr", 
+    search_kwargs={"k": 5, "fetch_k": 20}
+    )
     
     # 3. Tạo CRAG Chain thay vì Offline_RAG
     crag_chain = CRAG(llm).get_chain(retriever)
